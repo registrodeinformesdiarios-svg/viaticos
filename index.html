@@ -199,7 +199,7 @@
 
             let message = `*DETALLE DE VIÁTICOS*\n`;
             message += `🚗 *Vehículo:* ${table.placa || 'Sin placa'}\n`;
-            message += `💰 *Precios:* D: $${appData.config.desayuno} | A: $${appData.config.almuerzo} | C: $${appData.config.cena}\n`;
+            message += `💰 *Precios:* D: ₡${appData.config.desayuno} | A: ₡${appData.config.almuerzo} | C: ₡${appData.config.cena}\n`;
             message += `----------------------------\n`;
 
             table.days.forEach(day => {
@@ -219,12 +219,12 @@
 
                     message += `*${dayName.toUpperCase()}* (${formattedDate})\n`;
                     message += `• ${items.join(', ')}\n`;
-                    message += `Subtotal: $${daySum.toLocaleString('es-ES')}\n\n`;
+                    message += `Subtotal: ₡${daySum.toLocaleString('es-ES')}\n\n`;
                 }
             });
 
             message += `----------------------------\n`;
-            message += `💰 *TOTAL GENERAL: $${total.toLocaleString('es-ES')}*\n`;
+            message += `💰 *TOTAL GENERAL: ₡${total.toLocaleString('es-ES')}*\n`;
             message += `_Enviado desde Gestor de Viáticos_`;
 
             const encoded = encodeURIComponent(message);
@@ -315,7 +315,7 @@
                                         ${table.days.map((day, idx) => `
                                             <td onclick="toggleViatico(${table.id}, ${idx}, 'desayuno')" 
                                                 class="viatico-cell px-2 py-4 text-center border-r ${!day.desayuno ? 'viatico-off' : 'font-bold text-blue-600'}">
-                                                ${day.desayuno ? '$' + appData.config.desayuno : '--'}
+                                                ${day.desayuno ? '₡' + appData.config.desayuno : '--'}
                                             </td>
                                         `).join('')}
                                     </tr>
@@ -324,7 +324,7 @@
                                         ${table.days.map((day, idx) => `
                                             <td onclick="toggleViatico(${table.id}, ${idx}, 'almuerzo')" 
                                                 class="viatico-cell px-2 py-4 text-center border-r ${!day.almuerzo ? 'viatico-off' : 'font-bold text-blue-600'}">
-                                                ${day.almuerzo ? '$' + appData.config.almuerzo : '--'}
+                                                ${day.almuerzo ? '₡' + appData.config.almuerzo : '--'}
                                             </td>
                                         `).join('')}
                                     </tr>
@@ -333,7 +333,7 @@
                                         ${table.days.map((day, idx) => `
                                             <td onclick="toggleViatico(${table.id}, ${idx}, 'cena')" 
                                                 class="viatico-cell px-2 py-4 text-center border-r ${!day.cena ? 'viatico-off' : 'font-bold text-blue-600'}">
-                                                ${day.cena ? '$' + appData.config.cena : '--'}
+                                                ${day.cena ? '₡' + appData.config.cena : '--'}
                                             </td>
                                         `).join('')}
                                     </tr>
@@ -342,7 +342,7 @@
                                     <tr>
                                         <td class="px-4 py-4 font-black text-xs uppercase">Total</td>
                                         <td colspan="${table.days.length}" class="px-6 py-4 text-right text-2xl font-black">
-                                            $ ${total.toLocaleString('es-ES')}
+                                            ₡ ${total.toLocaleString('es-ES')}
                                         </td>
                                     </tr>
                                 </tfoot>
