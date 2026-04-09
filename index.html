@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Viáticos Profesional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        .viatico-cell {
+            transition: all 0.2s;
+            cursor: pointer;
+            user-select: none;
+        }
+        .viatico-cell:hover {
+            background-color: #f3f4f6;
+        }
+        .viatico-off {
+            color: #9ca3af;
+            text-decoration: line-through;
+            background-color: #f9fafb !important;
+        }
+        @media print {
+            .no-print { display: none; }
+        }
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 50;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8 font-sans">
+
+    <div id="loading" class="loading-overlay">Generando archivo...</div>
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Configuración Global -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8 no-print border-t-4 border-blue-600">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <span>📋</span> Gestor de Viáticos
+            </h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Desayuno</label>
+                    <input type="number" id="globalDesayuno" value="4200" onchange="updateGlobalPrices()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Almuerzo</label>
+                    <input type="number" id="globalAlmuerzo" value="5600" onchange="updateGlobalPrices()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Cena</label>
+                    <input type="number" id="globalCena" value="5600" onchange="updateGlobalPrices()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="addNewTable()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition font-bold flex-1">
+                        + Nueva Tabla
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-6 flex flex-wrap gap-4 border-t pt-4">
+                <button onclick="exportData()" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded">
+                    📥 Descargar JSON
+                </button>
+                <label class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded cursor-pointer">
+                    📤 Subir JSON
+                    <input type="file" id="importFile" class="hidden" onchange="importData(event)">
+                </label>
+                <button onclick="resetAll()" class="text-sm bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded">
+                    🗑️ Borrar Todo
+                </button>
+            </div>
+        </div>
+
+        <!-- Tablas -->
+        <div id="tablesContainer" class="space-y-10"></div>
+
+        <div id="emptyState" class="hidden text-center py-20 text-gray-500">
+            <p class="text-xl">No hay tablas activas.</p>
+        </div>
+    </div>
+
+    <script>
+        let appData = {
+            config: { desayuno: 4200, almuerzo: 5600, cena: 5600 },
+            tables: []
+        };
+
+        const STORAGE_KEY = 'viaticos_full_data_v4';
+
+        window.onload = () => {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                appData = JSON.parse(saved);
+                document.getElementById('globalDesayuno').value = appData.config.desayuno;
+                document.getElementById('globalAlmuerzo').value = appData.config.almuerzo;
+                document.getElementById('globalCena').value = appData.config.cena;
+            } else {
+                addNewTable();
+            }
+            render();
+        };
+
+        function save() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        }
+
+        function updateGlobalPrices() {
+            appData.config.desayuno = parseFloat(document.getElementById('globalDesayuno').value) || 0;
+            appData.config.almuerzo = parseFloat(document.getElementById('globalAlmuerzo').value) || 0;
+            appData.config.cena = parseFloat(document.getElementById('globalCena').value) || 0;
+            save();
+            render();
+        }
+
+        function getStartOfWeek() {
+            const now = new Date();
+            const day = now.getDay();
+            const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+            return new Date(now.setDate(diff));
+        }
+
+        function addNewTable() {
+            const startDate = getStartOfWeek();
+            const days = [];
+            for(let i=0; i<7; i++) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                days.push({
+                    date: d.toISOString().split('T')[0],
+                    desayuno: true, almuerzo: true, cena: true
+                });
+            }
+            appData.tables.push({ id: Date.now(), placa: '', days });
+            save();
+            render();
+        }
+
+        function removeTable(id) {
+            if(confirm('¿Eliminar esta tabla?')) {
+                appData.tables = appData.tables.filter(t => t.id !== id);
+                save();
+                render();
+            }
+        }
+
+        function addDay(tableId, position) {
+            const table = appData.tables.find(t => t.id === tableId);
+            if (!table) return;
+            const targetDate = position === 'left' ? new Date(table.days[0].date) : new Date(table.days[table.days.length - 1].date);
+            targetDate.setDate(targetDate.getDate() + (position === 'left' ? -1 : 1));
+            const newDay = { date: targetDate.toISOString().split('T')[0], desayuno: true, almuerzo: true, cena: true };
+            position === 'left' ? table.days.unshift(newDay) : table.days.push(newDay);
+            save();
+            render();
+        }
+
+        function toggleViatico(tableId, dayIndex, type) {
+            const table = appData.tables.find(t => t.id === tableId);
+            if (table) {
+                table.days[dayIndex][type] = !table.days[dayIndex][type];
+                save();
+                render();
+            }
+        }
+
+        function updatePlaca(tableId, value) {
+            const table = appData.tables.find(t => t.id === tableId);
+            if (table) { table.placa = value; save(); }
+        }
+
+        function updateDayDate(tableId, dayIndex, value) {
+            const table = appData.tables.find(t => t.id === tableId);
+            if (table) { table.days[dayIndex].date = value; save(); render(); }
+        }
+
+        function calculateTableTotal(table) {
+            return table.days.reduce((acc, day) => {
+                let dayTotal = 0;
+                if (day.desayuno) dayTotal += appData.config.desayuno;
+                if (day.almuerzo) dayTotal += appData.config.almuerzo;
+                if (day.cena) dayTotal += appData.config.cena;
+                return acc + dayTotal;
+            }, 0);
+        }
+
+        function shareWhatsApp(tableId) {
+            const table = appData.tables.find(t => t.id === tableId);
+            const total = calculateTableTotal(table);
+
+            let message = `*DETALLE DE VIÁTICOS*\n`;
+            message += `🚗 *Vehículo:* ${table.placa || 'Sin placa'}\n`;
+            message += `💰 *Precios:* D: $${appData.config.desayuno} | A: $${appData.config.almuerzo} | C: $${appData.config.cena}\n`;
+            message += `----------------------------\n`;
+
+            table.days.forEach(day => {
+                const daySum = (day.desayuno ? appData.config.desayuno : 0) + 
+                             (day.almuerzo ? appData.config.almuerzo : 0) + 
+                             (day.cena ? appData.config.cena : 0);
+
+                if (daySum > 0) {
+                    const dateObj = new Date(day.date + 'T00:00:00');
+                    const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
+                    const formattedDate = dateObj.toLocaleDateString('es-ES');
+                    
+                    let items = [];
+                    if (day.desayuno) items.push('Desayuno');
+                    if (day.almuerzo) items.push('Almuerzo');
+                    if (day.cena) items.push('Cena');
+
+                    message += `*${dayName.toUpperCase()}* (${formattedDate})\n`;
+                    message += `• ${items.join(', ')}\n`;
+                    message += `Subtotal: $${daySum.toLocaleString('es-ES')}\n\n`;
+                }
+            });
+
+            message += `----------------------------\n`;
+            message += `💰 *TOTAL GENERAL: $${total.toLocaleString('es-ES')}*\n`;
+            message += `_Enviado desde Gestor de Viáticos_`;
+
+            const encoded = encodeURIComponent(message);
+            window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+        }
+
+        async function downloadTableImage(tableId) {
+            const element = document.getElementById(`table-card-${tableId}`);
+            const loading = document.getElementById('loading');
+            loading.style.display = 'flex';
+
+            const buttons = element.querySelectorAll('.no-capture');
+            buttons.forEach(b => b.style.display = 'none');
+
+            try {
+                const canvas = await html2canvas(element, {
+                    backgroundColor: '#ffffff',
+                    scale: 2
+                });
+                const link = document.createElement('a');
+                link.download = `viaticos_${tableId}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (err) { console.error(err); } 
+            finally {
+                buttons.forEach(b => b.style.display = 'flex');
+                loading.style.display = 'none';
+            }
+        }
+
+        function render() {
+            const container = document.getElementById('tablesContainer');
+            const emptyState = document.getElementById('emptyState');
+            if (appData.tables.length === 0) {
+                emptyState.classList.remove('hidden');
+                container.innerHTML = '';
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            container.innerHTML = appData.tables.map(table => {
+                const total = calculateTableTotal(table);
+                return `
+                    <div id="table-card-${table.id}" class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                        <div class="bg-gray-50 p-4 border-b flex flex-wrap justify-between items-center gap-4">
+                            <div class="flex items-center gap-4">
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-400 uppercase">Vehículo / Placa</label>
+                                    <input type="text" value="${table.placa}" placeholder="Placa" 
+                                        oninput="updatePlaca(${table.id}, this.value)"
+                                        class="block border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent font-bold text-lg w-32">
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 no-capture">
+                                <button onclick="shareWhatsApp(${table.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm">
+                                    📱 WhatsApp
+                                </button>
+                                <button onclick="downloadTableImage(${table.id})" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 transition border">
+                                    📸 Imagen
+                                </button>
+                                <div class="h-8 w-[1px] bg-gray-300 mx-2"></div>
+                                <button onclick="addDay(${table.id}, 'left')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-bold border border-blue-200">+Día Izq</button>
+                                <button onclick="addDay(${table.id}, 'right')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-bold border border-blue-200">+Día Der</button>
+                                <button onclick="removeTable(${table.id})" class="text-red-400 hover:text-red-600 p-2">🗑️</button>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-gray-100 text-gray-600 font-bold">
+                                    <tr>
+                                        <th class="px-4 py-3 border-r min-w-[120px]">Concepto</th>
+                                        ${table.days.map((day, idx) => `
+                                            <th class="px-2 py-3 text-center border-r min-w-[120px]">
+                                                <input type="date" value="${day.date}" 
+                                                    onchange="updateDayDate(${table.id}, ${idx}, this.value)"
+                                                    class="bg-transparent text-center font-bold w-full outline-none text-xs text-blue-800">
+                                                <div class="text-[10px] text-gray-400 mt-1 uppercase">
+                                                    ${new Date(day.date + 'T00:00:00').toLocaleDateString('es-ES', {weekday: 'short'})}
+                                                </div>
+                                            </th>
+                                        `).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b">
+                                        <td class="px-4 py-4 font-bold border-r bg-gray-50">Desayuno</td>
+                                        ${table.days.map((day, idx) => `
+                                            <td onclick="toggleViatico(${table.id}, ${idx}, 'desayuno')" 
+                                                class="viatico-cell px-2 py-4 text-center border-r ${!day.desayuno ? 'viatico-off' : 'font-bold text-blue-600'}">
+                                                ${day.desayuno ? '$' + appData.config.desayuno : '--'}
+                                            </td>
+                                        `).join('')}
+                                    </tr>
+                                    <tr class="border-b">
+                                        <td class="px-4 py-4 font-bold border-r bg-gray-50">Almuerzo</td>
+                                        ${table.days.map((day, idx) => `
+                                            <td onclick="toggleViatico(${table.id}, ${idx}, 'almuerzo')" 
+                                                class="viatico-cell px-2 py-4 text-center border-r ${!day.almuerzo ? 'viatico-off' : 'font-bold text-blue-600'}">
+                                                ${day.almuerzo ? '$' + appData.config.almuerzo : '--'}
+                                            </td>
+                                        `).join('')}
+                                    </tr>
+                                    <tr class="border-b">
+                                        <td class="px-4 py-4 font-bold border-r bg-gray-50">Cena</td>
+                                        ${table.days.map((day, idx) => `
+                                            <td onclick="toggleViatico(${table.id}, ${idx}, 'cena')" 
+                                                class="viatico-cell px-2 py-4 text-center border-r ${!day.cena ? 'viatico-off' : 'font-bold text-blue-600'}">
+                                                ${day.cena ? '$' + appData.config.cena : '--'}
+                                            </td>
+                                        `).join('')}
+                                    </tr>
+                                </tbody>
+                                <tfoot class="bg-gray-800 text-white">
+                                    <tr>
+                                        <td class="px-4 py-4 font-black text-xs uppercase">Total</td>
+                                        <td colspan="${table.days.length}" class="px-6 py-4 text-right text-2xl font-black">
+                                            $ ${total.toLocaleString('es-ES')}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", "viaticos_backup.json");
+            dl.click();
+        }
+
+        function importData(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                appData = JSON.parse(e.target.result);
+                save();
+                location.reload();
+            };
+            reader.readAsText(file);
+        }
+
+        function resetAll() {
+            if(confirm('¿Borrar todo?')) {
+                localStorage.removeItem(STORAGE_KEY);
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
