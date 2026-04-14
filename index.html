@@ -285,7 +285,22 @@
         function updateDayField(tableId, dayIndex, field, value) {
             const table = appData.tables.find(t => t.id === tableId);
             if (table) {
-                table.days[dayIndex][field] = value;
+                if (field === 'date' && value) {
+                    // Calcular el desplazamiento en días entre la fecha anterior y la nueva
+                    const oldDate = new Date(table.days[dayIndex].date + 'T00:00:00');
+                    const newDate = new Date(value + 'T00:00:00');
+                    const diffMs = newDate - oldDate;
+                    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+                    // Actualizar todas las fechas desplazándolas el mismo número de días
+                    table.days.forEach((day, i) => {
+                        const d = new Date(day.date + 'T00:00:00');
+                        d.setDate(d.getDate() + diffDays);
+                        table.days[i].date = d.toISOString().split('T')[0];
+                    });
+                } else {
+                    table.days[dayIndex][field] = value;
+                }
                 save();
                 if (field === 'date') render();
             }
