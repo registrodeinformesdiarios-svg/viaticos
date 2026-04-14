@@ -13,7 +13,7 @@
             user-select: none;
         }
         .viatico-cell:hover {
-            background-color: #f3f4f6;
+            background-color: #e8f0fe;
         }
         .viatico-off {
             color: #9ca3af;
@@ -34,13 +34,69 @@
             color: white;
             font-weight: bold;
         }
+        /* Table styling to match reference */
+        .viaticos-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.85rem;
+        }
+        .viaticos-table th, .viaticos-table td {
+            border: 1px solid #cbd5e1;
+            padding: 6px 10px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .viaticos-table th {
+            background-color: #f1f5f9;
+            font-weight: 700;
+            color: #374151;
+        }
+        .viaticos-table td.label-col {
+            text-align: left;
+        }
+        .viaticos-table input[type="time"],
+        .viaticos-table input[type="date"],
+        .viaticos-table input[type="text"] {
+            background: transparent;
+            border: none;
+            outline: none;
+            text-align: center;
+            width: 100%;
+            font-size: 0.82rem;
+            font-family: inherit;
+            color: inherit;
+        }
+        .viaticos-table input[type="text"].justif-input {
+            text-align: left;
+        }
+        .amount-cell {
+            font-weight: 600;
+            color: #1d4ed8;
+            white-space: nowrap;
+        }
+        .total-cell {
+            font-weight: 700;
+            color: #1e3a5f;
+            white-space: nowrap;
+        }
+        .grand-total-row td {
+            background-color: #f1f5f9;
+            font-weight: 700;
+        }
+        /* Title rows */
+        .title-row td {
+            background-color: #f8fafc;
+            font-weight: 700;
+            font-size: 1rem;
+            color: #1e3a5f;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-4 md:p-8 font-sans">
 
-    <div id="loading" class="loading-overlay">Generando archivo...</div>
+    <div id="loading" class="loading-overlay flex">Generando archivo...</div>
 
-    <div class="max-w-6xl mx-auto">
+    <div class="max-w-7xl mx-auto">
         <!-- Configuración Global -->
         <div class="bg-white rounded-xl shadow-md p-6 mb-8 no-print border-t-4 border-blue-600">
             <h1 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
@@ -49,15 +105,15 @@
             
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Desayuno</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Desayuno (₡)</label>
                     <input type="number" id="globalDesayuno" value="4200" onchange="updateGlobalPrices()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Almuerzo</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Almuerzo (₡)</label>
                     <input type="number" id="globalAlmuerzo" value="5600" onchange="updateGlobalPrices()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Cena</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase">Costo Cena (₡)</label>
                     <input type="number" id="globalCena" value="5600" onchange="updateGlobalPrices()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
                 </div>
                 <div class="flex gap-2">
@@ -95,7 +151,7 @@
             tables: []
         };
 
-        const STORAGE_KEY = 'viaticos_full_data_v4';
+        const STORAGE_KEY = 'viaticos_full_data_v5';
 
         window.onload = () => {
             const saved = localStorage.getItem(STORAGE_KEY);
@@ -108,6 +164,7 @@
                 addNewTable();
             }
             render();
+            document.getElementById('loading').style.display = 'none';
         };
 
         function save() {
@@ -132,21 +189,31 @@
         function addNewTable() {
             const startDate = getStartOfWeek();
             const days = [];
-            for(let i=0; i<7; i++) {
+            for (let i = 0; i < 5; i++) {
                 const d = new Date(startDate);
                 d.setDate(startDate.getDate() + i);
                 days.push({
                     date: d.toISOString().split('T')[0],
-                    desayuno: true, almuerzo: true, cena: true
+                    hrSalida: '',
+                    hrLlegada: '',
+                    desayuno: true,
+                    almuerzo: true,
+                    cena: true
                 });
             }
-            appData.tables.push({ id: Date.now(), placa: '', days });
+            appData.tables.push({
+                id: Date.now(),
+                nombre: '',
+                placa: '',
+                justificacion: '',
+                days
+            });
             save();
             render();
         }
 
         function removeTable(id) {
-            if(confirm('¿Eliminar esta tabla?')) {
+            if (confirm('¿Eliminar esta tabla?')) {
                 appData.tables = appData.tables.filter(t => t.id !== id);
                 save();
                 render();
@@ -156,10 +223,27 @@
         function addDay(tableId, position) {
             const table = appData.tables.find(t => t.id === tableId);
             if (!table) return;
-            const targetDate = position === 'left' ? new Date(table.days[0].date) : new Date(table.days[table.days.length - 1].date);
+            const targetDate = position === 'left'
+                ? new Date(table.days[0].date)
+                : new Date(table.days[table.days.length - 1].date);
             targetDate.setDate(targetDate.getDate() + (position === 'left' ? -1 : 1));
-            const newDay = { date: targetDate.toISOString().split('T')[0], desayuno: true, almuerzo: true, cena: true };
+            const newDay = {
+                date: targetDate.toISOString().split('T')[0],
+                hrSalida: '',
+                hrLlegada: '',
+                desayuno: true,
+                almuerzo: true,
+                cena: true
+            };
             position === 'left' ? table.days.unshift(newDay) : table.days.push(newDay);
+            save();
+            render();
+        }
+
+        function removeDay(tableId, dayIndex) {
+            const table = appData.tables.find(t => t.id === tableId);
+            if (!table || table.days.length <= 1) return;
+            table.days.splice(dayIndex, 1);
             save();
             render();
         }
@@ -173,14 +257,38 @@
             }
         }
 
-        function updatePlaca(tableId, value) {
+        function updateField(tableId, field, value) {
             const table = appData.tables.find(t => t.id === tableId);
-            if (table) { table.placa = value; save(); }
+            if (!table) return;
+            table[field] = value;
+            save();
+            if (field === 'nombre') {
+                const el = document.getElementById(`nombre-display-${tableId}`);
+                if (el) el.innerHTML = value
+                    ? value
+                    : '<span style="color:#9ca3af; font-weight:400;">Nombre del Funcionario</span>';
+            }
+            if (field === 'justificacion') {
+                const el = document.getElementById(`justif-display-${tableId}`);
+                if (el) el.innerHTML = value
+                    ? value
+                    : '<em style="color:#9ca3af;">Sin justificación</em>';
+            }
+            if (field === 'placa') {
+                const elements = document.querySelectorAll(`.placa-display-${tableId}`);
+                elements.forEach(el => {
+                    el.innerText = value;
+                });
+            }
         }
 
-        function updateDayDate(tableId, dayIndex, value) {
+        function updateDayField(tableId, dayIndex, field, value) {
             const table = appData.tables.find(t => t.id === tableId);
-            if (table) { table.days[dayIndex].date = value; save(); render(); }
+            if (table) {
+                table.days[dayIndex][field] = value;
+                save();
+                if (field === 'date') render();
+            }
         }
 
         function calculateTableTotal(table) {
@@ -193,42 +301,58 @@
             }, 0);
         }
 
+        function calculateDayTotal(day) {
+            let t = 0;
+            if (day.desayuno) t += appData.config.desayuno;
+            if (day.almuerzo) t += appData.config.almuerzo;
+            if (day.cena) t += appData.config.cena;
+            return t;
+        }
+
+        function formatAmount(val) {
+            return '₡\u00a0' + val.toLocaleString('es-CR');
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleDateString('es-CR');
+        }
+
         function shareWhatsApp(tableId) {
             const table = appData.tables.find(t => t.id === tableId);
             const total = calculateTableTotal(table);
+            const roundedTotal = Math.floor(total / 1000) * 1000;
 
             let message = `*DETALLE DE VIÁTICOS*\n`;
-            message += `🚗 *Vehículo:* ${table.placa || 'Sin placa'}\n`;
-            message += `💰 *Precios:* D: ₡${appData.config.desayuno} | A: ₡${appData.config.almuerzo} | C: ₡${appData.config.cena}\n`;
+            if (table.nombre) message += `👤 *Funcionario:* ${table.nombre}\n`;
+            if (table.placa) message += `🚗 *Vehículo/Placa:* ${table.placa || 'Sin placa'}\n`;
+            if (table.justificacion) message += `📌 *Justificación:* ${table.justificacion}\n`;
+            message += `💰 *Precios:* D: ₡${appData.config.desayuno.toLocaleString('es-CR')} | A: ₡${appData.config.almuerzo.toLocaleString('es-CR')} | C: ₡${appData.config.cena.toLocaleString('es-CR')}\n`;
             message += `----------------------------\n`;
 
             table.days.forEach(day => {
-                const daySum = (day.desayuno ? appData.config.desayuno : 0) + 
-                             (day.almuerzo ? appData.config.almuerzo : 0) + 
-                             (day.cena ? appData.config.cena : 0);
-
+                const daySum = calculateDayTotal(day);
                 if (daySum > 0) {
                     const dateObj = new Date(day.date + 'T00:00:00');
-                    const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
-                    const formattedDate = dateObj.toLocaleDateString('es-ES');
-                    
+                    const dayName = dateObj.toLocaleDateString('es-CR', { weekday: 'long' });
+                    message += `*${dateObj.toLocaleDateString('es-CR')} (${dayName})*\n`;
+                    if (day.hrSalida) message += `  Salida: ${day.hrSalida}\n`;
+                    if (day.hrLlegada) message += `  Llegada: ${day.hrLlegada}\n`;
                     let items = [];
                     if (day.desayuno) items.push('Desayuno');
                     if (day.almuerzo) items.push('Almuerzo');
                     if (day.cena) items.push('Cena');
-
-                    message += `*${dayName.toUpperCase()}* (${formattedDate})\n`;
-                    message += `• ${items.join(', ')}\n`;
-                    message += `Subtotal: ₡${daySum.toLocaleString('es-ES')}\n\n`;
+                    message += `  ${items.join(' | ')}\n`;
+                    message += `  Subtotal: ₡${daySum.toLocaleString('es-CR')}\n\n`;
                 }
             });
 
             message += `----------------------------\n`;
-            message += `💰 *TOTAL GENERAL: ₡${total.toLocaleString('es-ES')}*\n`;
+            message += `💰 *TOTAL: ₡${total.toLocaleString('es-CR')}*\n`;
+            message += `🏦 *Para el banco (miles): ₡${roundedTotal.toLocaleString('es-CR')}*\n`;
             message += `_Enviado desde Gestor de Viáticos_`;
 
-            const encoded = encodeURIComponent(message);
-            window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank');
         }
 
         async function downloadTableImage(tableId) {
@@ -240,15 +364,12 @@
             buttons.forEach(b => b.style.display = 'none');
 
             try {
-                const canvas = await html2canvas(element, {
-                    backgroundColor: '#ffffff',
-                    scale: 2
-                });
+                const canvas = await html2canvas(element, { backgroundColor: '#ffffff', scale: 2 });
                 const link = document.createElement('a');
                 link.download = `viaticos_${tableId}.png`;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
-            } catch (err) { console.error(err); } 
+            } catch (err) { console.error(err); }
             finally {
                 buttons.forEach(b => b.style.display = 'flex');
                 loading.style.display = 'none';
@@ -267,89 +388,148 @@
 
             container.innerHTML = appData.tables.map(table => {
                 const total = calculateTableTotal(table);
+
+                const dayRows = table.days.map((day, idx) => {
+                    const dayTotal = calculateDayTotal(day);
+                    const desayunoOff = !day.desayuno;
+                    const almuerzoOff = !day.almuerzo;
+                    const cenaOff = !day.cena;
+                    const dateObj = new Date(day.date + 'T00:00:00');
+                    const diaSemana = day.date ? dateObj.toLocaleDateString('es-CR', { weekday: 'short' }).replace('.','') : '';
+
+                    return `
+                    <tr>
+                        <td>
+                            <input type="date" value="${day.date}"
+                                onchange="updateDayField(${table.id}, ${idx}, 'date', this.value)"
+                                style="min-width:105px">
+                        </td>
+                        <td style="font-size:0.75rem; color:#6b7280; font-weight:600; text-transform:capitalize; white-space:nowrap;">${diaSemana}</td>
+                        <td>
+                            <input type="time" value="${day.hrSalida || ''}" placeholder="--:--"
+                                onchange="updateDayField(${table.id}, ${idx}, 'hrSalida', this.value)"
+                                style="min-width:70px">
+                        </td>
+                        <td>
+                            <input type="time" value="${day.hrLlegada || ''}" placeholder="--:--"
+                                onchange="updateDayField(${table.id}, ${idx}, 'hrLlegada', this.value)"
+                                style="min-width:70px">
+                        </td>
+                        <td class="viatico-cell amount-cell ${desayunoOff ? 'viatico-off' : ''}"
+                            onclick="toggleViatico(${table.id}, ${idx}, 'desayuno')"
+                            title="Clic para activar/desactivar">
+                            ${day.desayuno ? formatAmount(appData.config.desayuno) : '--'}
+                        </td>
+                        <td class="viatico-cell amount-cell ${almuerzoOff ? 'viatico-off' : ''}"
+                            onclick="toggleViatico(${table.id}, ${idx}, 'almuerzo')"
+                            title="Clic para activar/desactivar">
+                            ${day.almuerzo ? formatAmount(appData.config.almuerzo) : '--'}
+                        </td>
+                        <td class="viatico-cell amount-cell ${cenaOff ? 'viatico-off' : ''}"
+                            onclick="toggleViatico(${table.id}, ${idx}, 'cena')"
+                            title="Clic para activar/desactivar">
+                            ${day.cena ? formatAmount(appData.config.cena) : '--'}
+                        </td>
+                        <td class="total-cell">${dayTotal > 0 ? formatAmount(dayTotal) : '--'}</td>
+                        <td class="placa-display-${table.id}">${table.placa || ''}</td>
+                        <td class="no-capture" style="min-width:30px; text-align:center;">
+                            <button onclick="removeDay(${table.id}, ${idx})" 
+                                style="color:#ef4444; background:none; border:none; cursor:pointer; font-size:1rem;" 
+                                title="Eliminar día">✕</button>
+                        </td>
+                    </tr>`;
+                }).join('');
+
                 return `
-                    <div id="table-card-${table.id}" class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
-                        <div class="bg-gray-50 p-4 border-b flex flex-wrap justify-between items-center gap-4">
-                            <div class="flex items-center gap-4">
-                                <div>
-                                    <label class="text-[10px] font-bold text-gray-400 uppercase">Vehículo / Placa</label>
-                                    <input type="text" value="${table.placa}" placeholder="Placa" 
-                                        oninput="updatePlaca(${table.id}, this.value)"
-                                        class="block border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent font-bold text-lg w-32">
-                                </div>
+                <div id="table-card-${table.id}" class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                    
+                    <!-- Toolbar -->
+                    <div class="bg-gray-50 p-4 border-b flex flex-wrap justify-between items-center gap-4 no-capture">
+                        <div class="flex items-center gap-4 flex-wrap">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-400 uppercase block">Nombre del Funcionario</label>
+                                <input type="text" value="${table.nombre || ''}" placeholder="Nombre completo"
+                                    oninput="updateField(${table.id}, 'nombre', this.value)"
+                                    class="block border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent font-bold text-base w-56">
                             </div>
-                            <div class="flex items-center gap-2 no-capture">
-                                <button onclick="shareWhatsApp(${table.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm">
-                                    📱 WhatsApp
-                                </button>
-                                <button onclick="downloadTableImage(${table.id})" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 transition border">
-                                    📸 Imagen
-                                </button>
-                                <div class="h-8 w-[1px] bg-gray-300 mx-2"></div>
-                                <button onclick="addDay(${table.id}, 'left')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-bold border border-blue-200">+Día Izq</button>
-                                <button onclick="addDay(${table.id}, 'right')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-bold border border-blue-200">+Día Der</button>
-                                <button onclick="removeTable(${table.id})" class="text-red-400 hover:text-red-600 p-2">🗑️</button>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-400 uppercase block">Vehículo / Placa</label>
+                                <input type="text" value="${table.placa || ''}" placeholder="Placa"
+                                    oninput="updateField(${table.id}, 'placa', this.value)"
+                                    class="block border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent font-bold text-base w-32">
                             </div>
                         </div>
-
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm text-left">
-                                <thead class="bg-gray-100 text-gray-600 font-bold">
-                                    <tr>
-                                        <th class="px-4 py-3 border-r min-w-[120px]">Concepto</th>
-                                        ${table.days.map((day, idx) => `
-                                            <th class="px-2 py-3 text-center border-r min-w-[120px]">
-                                                <input type="date" value="${day.date}" 
-                                                    onchange="updateDayDate(${table.id}, ${idx}, this.value)"
-                                                    class="bg-transparent text-center font-bold w-full outline-none text-xs text-blue-800">
-                                                <div class="text-[10px] text-gray-400 mt-1 uppercase">
-                                                    ${new Date(day.date + 'T00:00:00').toLocaleDateString('es-ES', {weekday: 'short'})}
-                                                </div>
-                                            </th>
-                                        `).join('')}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="border-b">
-                                        <td class="px-4 py-4 font-bold border-r bg-gray-50">Desayuno</td>
-                                        ${table.days.map((day, idx) => `
-                                            <td onclick="toggleViatico(${table.id}, ${idx}, 'desayuno')" 
-                                                class="viatico-cell px-2 py-4 text-center border-r ${!day.desayuno ? 'viatico-off' : 'font-bold text-blue-600'}">
-                                                ${day.desayuno ? '₡' + appData.config.desayuno : '--'}
-                                            </td>
-                                        `).join('')}
-                                    </tr>
-                                    <tr class="border-b">
-                                        <td class="px-4 py-4 font-bold border-r bg-gray-50">Almuerzo</td>
-                                        ${table.days.map((day, idx) => `
-                                            <td onclick="toggleViatico(${table.id}, ${idx}, 'almuerzo')" 
-                                                class="viatico-cell px-2 py-4 text-center border-r ${!day.almuerzo ? 'viatico-off' : 'font-bold text-blue-600'}">
-                                                ${day.almuerzo ? '₡' + appData.config.almuerzo : '--'}
-                                            </td>
-                                        `).join('')}
-                                    </tr>
-                                    <tr class="border-b">
-                                        <td class="px-4 py-4 font-bold border-r bg-gray-50">Cena</td>
-                                        ${table.days.map((day, idx) => `
-                                            <td onclick="toggleViatico(${table.id}, ${idx}, 'cena')" 
-                                                class="viatico-cell px-2 py-4 text-center border-r ${!day.cena ? 'viatico-off' : 'font-bold text-blue-600'}">
-                                                ${day.cena ? '₡' + appData.config.cena : '--'}
-                                            </td>
-                                        `).join('')}
-                                    </tr>
-                                </tbody>
-                                <tfoot class="bg-gray-800 text-white">
-                                    <tr>
-                                        <td class="px-4 py-4 font-black text-xs uppercase">Total</td>
-                                        <td colspan="${table.days.length}" class="px-6 py-4 text-right text-2xl font-black">
-                                            ₡ ${total.toLocaleString('es-ES')}
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button onclick="shareWhatsApp(${table.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm flex items-center gap-1">
+                                📱 WhatsApp
+                            </button>
+                            <button onclick="downloadTableImage(${table.id})" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 transition border flex items-center gap-1">
+                                📸 Imagen
+                            </button>
+                            <div class="h-8 w-[1px] bg-gray-300 mx-1"></div>
+                            <button onclick="addDay(${table.id}, 'left')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-bold border border-blue-200">+ Día arriba</button>
+                            <button onclick="addDay(${table.id}, 'right')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-bold border border-blue-200">+ Día abajo</button>
+                            <button onclick="removeTable(${table.id})" class="text-red-400 hover:text-red-600 p-2 text-lg">🗑️</button>
                         </div>
                     </div>
-                `;
+
+                    <!-- Justificación -->
+                    <div class="px-4 py-2 border-b bg-white no-capture">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Justificación de la Gira</label>
+                        <input type="text" value="${table.justificacion || ''}" placeholder="Ej: Servicios de supervisión técnica para el Proyecto X"
+                            oninput="updateField(${table.id}, 'justificacion', this.value)"
+                            class="block w-full border-b border-gray-200 focus:border-blue-400 outline-none bg-transparent text-sm text-gray-700 py-1">
+                    </div>
+
+                    <!-- Table -->
+                    <div class="overflow-x-auto p-4">
+                        <table class="viaticos-table">
+                            <thead>
+                                <tr class="title-row">
+                                    <td colspan="10" style="text-align:center; font-size:1.05rem; padding: 8px;">
+                                        Viáticos
+                                    </td>
+                                </tr>
+                                <tr class="title-row">
+                                    <td colspan="10" style="text-align:center; padding: 6px;">
+                                        <span id="nombre-display-${table.id}">${table.nombre || '<span style="color:#9ca3af; font-weight:400;">Nombre del Funcionario</span>'}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Día</th>
+                                    <th>Hr<br>salida</th>
+                                    <th>Hr<br>llegada</th>
+                                    <th>Desayuno</th>
+                                    <th>Almuerzo</th>
+                                    <th>Cena</th>
+                                    <th>Total</th>
+                                    <th>Vehículo</th>
+                                    <th class="no-capture" style="width:30px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${dayRows}
+                            </tbody>
+                            <tfoot>
+                                <tr class="grand-total-row">
+                                    <td colspan="7" style="text-align:center; font-weight:700; font-size:0.9rem;">Total</td>
+                                    <td class="total-cell" style="font-size:1rem; white-space:nowrap;">
+                                        ${formatAmount(total)}
+                                        <br><span style="font-size:0.72rem; font-weight:400; color:#6b7280;">(${formatAmount(Math.floor(total/1000)*1000)} en miles)</span>
+                                    </td>
+                                    <td colspan="2"></td>
+                                </tr>
+                                <tr>
+                                    <td colspan="10" style="text-align:left; padding: 6px 10px; font-size:0.8rem; color:#374151;">
+                                        <strong>Justificación:</strong> <span id="justif-display-${table.id}">${table.justificacion || '<em style="color:#9ca3af;">Sin justificación</em>'}</span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        <p class="text-[10px] text-gray-400 mt-2 no-capture">💡 Haz clic en Desayuno, Almuerzo o Cena para activar/desactivar cada uno.</p>
+                    </div>
+                </div>`;
             }).join('');
         }
 
@@ -374,7 +554,7 @@
         }
 
         function resetAll() {
-            if(confirm('¿Borrar todo?')) {
+            if (confirm('¿Borrar todo?')) {
                 localStorage.removeItem(STORAGE_KEY);
                 location.reload();
             }
