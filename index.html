@@ -201,11 +201,12 @@
                     cena: true
                 });
             }
+            const lastTable = appData.tables[appData.tables.length - 1];
             appData.tables.push({
                 id: Date.now(),
-                nombre: '',
-                placa: '',
-                justificacion: '',
+                nombre: lastTable ? lastTable.nombre : '',
+                placa: lastTable ? lastTable.placa : '',
+                justificacion: lastTable ? lastTable.justificacion : '',
                 days
             });
             save();
