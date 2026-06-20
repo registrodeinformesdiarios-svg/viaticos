@@ -123,6 +123,16 @@
                 </div>
             </div>
 
+            <div class="mt-4 flex flex-wrap gap-2 items-center">
+                <span class="text-xs font-bold text-gray-500 uppercase mr-1">Plantillas rápidas:</span>
+                <button onclick="addBisemanaParte1()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md transition font-bold text-sm">
+                    📅 Bisemana (parte 1) · Mar–Sáb
+                </button>
+                <button onclick="addBisemanaParte2()" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md transition font-bold text-sm">
+                    📅 Bisemana (parte 2) · Dom–Vie
+                </button>
+            </div>
+
             <div class="mt-6 flex flex-wrap gap-4 border-t pt-4">
                 <button onclick="exportData()" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded">
                     📥 Descargar JSON
@@ -211,6 +221,71 @@
             });
             save();
             render();
+        }
+
+        // --- Plantillas rápidas (bisemanas) ---
+
+        function fmtLocalDate(d) {
+            // Formatea a YYYY-MM-DD usando componentes locales (evita el corrimiento de día por UTC).
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function getDateForDow(dow) {
+            // dow: 0=Domingo ... 6=Sábado. Devuelve la fecha de ese día dentro de la semana actual (Lun–Dom).
+            const monday = getStartOfWeek();
+            const offset = (dow === 0) ? 6 : dow - 1; // Lun=0, Mar=1, ..., Sáb=5, Dom=6
+            monday.setDate(monday.getDate() + offset);
+            return monday;
+        }
+
+        function buildDays(startDate, count, overrides) {
+            // overrides[i] = { desayuno, almuerzo, cena } para sobreescribir el día i (opcional).
+            const days = [];
+            for (let i = 0; i < count; i++) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                const day = {
+                    date: fmtLocalDate(d),
+                    hrSalida: '',
+                    hrLlegada: '',
+                    desayuno: true,
+                    almuerzo: true,
+                    cena: true
+                };
+                if (overrides && overrides[i]) Object.assign(day, overrides[i]);
+                days.push(day);
+            }
+            return days;
+        }
+
+        function pushTable(days) {
+            const lastTable = appData.tables[appData.tables.length - 1];
+            appData.tables.push({
+                id: Date.now(),
+                nombre: lastTable ? lastTable.nombre : '',
+                placa: lastTable ? lastTable.placa : '',
+                justificacion: lastTable ? lastTable.justificacion : '',
+                days
+            });
+            save();
+            render();
+        }
+
+        function addBisemanaParte1() {
+            // Martes a sábado, todas las comidas.
+            const start = getDateForDow(2); // martes
+            pushTable(buildDays(start, 5));
+        }
+
+        function addBisemanaParte2() {
+            // Domingo a viernes, sin la cena del viernes (último día).
+            const start = getDateForDow(0); // domingo
+            const overrides = [];
+            overrides[5] = { cena: false }; // viernes
+            pushTable(buildDays(start, 6, overrides));
         }
 
         function removeTable(id) {
